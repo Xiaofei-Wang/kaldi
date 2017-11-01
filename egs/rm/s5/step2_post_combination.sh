@@ -98,7 +98,7 @@ fi
 #         extcute getstreamweight_from_pca_222.m to get pca weight
 #         extcute getstreamweight_from_tdnn_222.m to get tdnn autoencoder weight 
 #task=frame_AE_splice_5_1
-task=frame_tdnn_tdnncontext_20_14
+task=entropy_14ch
 if [ $stage -le 4 ]; then
 #  weight_dir=exp/dnn4_pretrain-dbn_dnn
 
