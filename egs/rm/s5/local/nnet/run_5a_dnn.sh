@@ -27,7 +27,7 @@ set -euxo pipefail
 # Store fMLLR features, so we can train on them easily,
 if [ $stage -le 0 ]; then
 #  dev
-  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13 CH14; do
+  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13; do
   dir=$data_fmllr/dev/$ch
   steps/nnet/make_fmllr_feats.sh --nj 4 --cmd "$train_cmd" \
      --transform-dir $gmmdir/decode_dev_$ch \
@@ -39,16 +39,16 @@ if [ $stage -le 0 ]; then
      $dir data/test/$ch $gmmdir $dir/log $dir/data
   done
   # train
-  dir=$data_fmllr/train
-  steps/nnet/make_fmllr_feats.sh --nj 15 --cmd "$train_cmd" \
-     --transform-dir ${gmmdir}_ali \
-     $dir data/train $gmmdir $dir/log $dir/data
-  # split the data : 90% train 10% cross-validation (held-out)
-  utils/subset_data_dir_tr_cv.sh $dir ${dir}_tr90 ${dir}_cv10
+#  dir=$data_fmllr/train
+#  steps/nnet/make_fmllr_feats.sh --nj 15 --cmd "$train_cmd" \
+#     --transform-dir ${gmmdir}_ali \
+#     $dir data/train $gmmdir $dir/log $dir/data
+#  # split the data : 90% train 10% cross-validation (held-out)
+#  utils/subset_data_dir_tr_cv.sh $dir ${dir}_tr90 ${dir}_cv10
 fi
 
 # Pre-train DBN, i.e. a stack of RBMs,
-if [ $stage -le 1 ]; then
+if [ $stage -le -1 ]; then
   dir=exp/dnn4_pretrain-dbn
   $cuda_cmd $dir/log/pretrain_dbn.log \
     steps/nnet/pretrain_dbn.sh --rbm-iter 1 $data_fmllr/train $dir
@@ -66,16 +66,14 @@ if [ $stage -le 2 ]; then
 #    $data_fmllr/train_tr90 $data_fmllr/train_cv10 data/lang $ali $ali $dir
 
   # Decode (reuse HCLG graph)
-#  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13 CH14; do
-ch=CH03
-#  steps/nnet/decode.sh --nj $nj_decode --cmd "$decode_cmd" --config conf/decode_dnn.config --acwt 0.1 \
-#    --num-threads 3 \
-#    $graph_dir $data_fmllr/dev/$ch $dir/decode_dev_$ch &
+  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13; do
+  steps/nnet/decode.sh --nj $nj_decode --cmd "$decode_cmd" --config conf/decode_dnn.config --acwt 0.1 \
+    --num-threads 3 \
+    $graph_dir $data_fmllr/dev/$ch $dir/decode_dev_$ch &
   steps/nnet/decode.sh --nj $nj_decode --cmd "$decode_cmd" --config conf/decode_dnn.config --acwt 0.1 \
     --num-threads 3 \
     $graph_dir $data_fmllr/test/$ch $dir/decode_test_$ch & 
-
-#  done
+  done
 fi
 
 

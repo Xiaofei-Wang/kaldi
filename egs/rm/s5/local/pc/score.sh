@@ -10,7 +10,7 @@ stage=0
 decode_mbr=true
 word_ins_penalty=0.0
 min_lmwt=1
-max_lmwt=20
+max_lmwt=1
 #end configuration section.
 
 [ -f ./path.sh ] && . ./path.sh
@@ -33,7 +33,7 @@ dir=$3
 
 symtab=$lang_or_graph/words.txt
 
-for f in $symtab $dir/lat.1.gz $data/text; do
+for f in $symtab $data/text; do
   [ ! -f $f ] && echo "score.sh: no such file $f" && exit 1;
 done
 
@@ -41,11 +41,11 @@ mkdir -p $dir/scoring/log
 
 cat $data/text | sed 's:<NOISE>::g' | sed 's:<SPOKEN_NOISE>::g' > $dir/scoring/test_filt.txt
 
-$cmd LMWT=$min_lmwt:$max_lmwt $dir/scoring/log/best_path.LMWT.log \
-  lattice-scale --inv-acoustic-scale=LMWT "ark:gunzip -c $dir/lat.*.gz|" ark:- \| \
-  lattice-add-penalty --word-ins-penalty=$word_ins_penalty ark:- ark:- \| \
-  lattice-best-path --word-symbol-table=$symtab \
-    ark:- ark,t:$dir/scoring/LMWT.tra || exit 1;
+#$cmd LMWT=$min_lmwt:$max_lmwt $dir/scoring/log/best_path.LMWT.log \
+#  lattice-scale --inv-acoustic-scale=LMWT "ark:gunzip -c $dir/lat.*.gz|" ark:- \| \
+#  lattice-add-penalty --word-ins-penalty=$word_ins_penalty ark:- ark:- \| \
+#  lattice-best-path --word-symbol-table=$symtab \
+#    ark:- ark,t:$dir/scoring/LMWT.tra || exit 1;
 
 # Note: the double level of quoting for the sed command
 $cmd LMWT=$min_lmwt:$max_lmwt $dir/scoring/log/score.LMWT.log \
