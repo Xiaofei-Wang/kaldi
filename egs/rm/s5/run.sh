@@ -1,254 +1,199 @@
-#!/bin/bash
+#!/bin/bash -u
 
 . ./cmd.sh
-set -e # exit on error
+. ./path.sh
 
+stage=7
+. utils/parse_options.sh
 
-# call the next line with the directory where the RM data is
-# (the argument below is just an example).  This should contain
-# subdirectories named as follows:
-#    rm1_audio1  rm1_audio2	rm2_audio
+# Set bash to 'debug' mode, it prints the commands (option '-x') and exits on :
+# -e 'error', -u 'undefined variable', -o pipefail 'error in pipeline',
+set -euxo pipefail
 
-#local/rm_data_prep.sh /mnt/matylda2/data/RM
+# Path where Mixer-6 gets downloaded (or where locally available):
+MIXER6_DIR=/export/speakerphone/data/rdtr # Default,
 
-local/rm_data_prep.sh /export/corpora5/LDC/LDC93S3A/rm_comp
+# Prepare mixer6 training/dev/test data directories, and trian language models
+if [ $stage -le -1 ]; then
+  local/mixer6_data_prep.sh $MIXER6_DIR
+  local/run_lm_prepare.sh
+  local/mixer6_scoring_data_prep.sh $DEV_DIR 01
+  local/mixer6_test_scoring_data_prep.sh $TEST_DIR 01 
+fi
 
-#local/rm_data_prep.sh /home/dpovey/data/LDC93S3A/rm_comp
+#exit 0
 
-utils/prepare_lang.sh data/local/dict '!SIL' data/local/lang data/lang
+# Feature extraction of training data
+if [ $stage -le 2 ]; then
+  for dset in train; do
+    steps/make_mfcc.sh --nj 30 --cmd "$train_cmd" data/$dset data/$dset/log data/$dset/data
+    steps/compute_cmvn_stats.sh data/$dset data/$dset/log data/$dset/data
+  done
+  for dset in train; do utils/fix_data_dir.sh data/$dset; done
 
-local/rm_prepare_grammar.sh      # Traditional RM grammar (bigram word-pair)
-local/rm_prepare_grammar_ug.sh   # Unigram grammar (gives worse results, but
-                                 # changes in WER will be more significant.)
+  for dset in dev test; do
+    for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13 CH14; do
 
-# mfccdir should be some place with a largish disk where you
-# want to store MFCC features.   You can make a soft link if you want.
-featdir=mfcc
+      steps/make_mfcc.sh --nj 30 --cmd "$train_cmd" data/$dset/$ch data/$dset/$ch/log data/$dset/$ch/data
+      steps/compute_cmvn_stats.sh data/$dset/$ch data/$dset/$ch/log data/$dset/$ch/data
+      utils/fix_data_dir.sh data/$dset/$ch
+    done
+  done
 
-for x in test_mar87 test_oct87 test_feb89 test_oct89 test_feb91 test_sep92 train; do
-  steps/make_mfcc.sh --nj 8 --cmd "$train_cmd" data/$x exp/make_feat/$x $featdir
-  #steps/make_plp.sh --nj 8 --cmd "$train_cmd" data/$x exp/make_feat/$x $featdir
-  steps/compute_cmvn_stats.sh data/$x exp/make_feat/$x $featdir
-done
+fi
 
-# Make a combined data dir where the data from all the test sets goes-- we do
-# all our testing on this averaged set.  This is just less hassle.  We
-# regenerate the CMVN stats as one of the speakers appears in two of the
-# test sets; otherwise tools complain as the archive has 2 entries.
-utils/combine_data.sh data/test data/test_{mar87,oct87,feb89,oct89,feb91,sep92}
-steps/compute_cmvn_stats.sh data/test exp/make_feat/test $featdir
+[ ! -r data/local/lm/final_lm ] && echo "Please, run 'run_prepare_shared.sh' first!" && exit 1
+final_lm=`cat data/local/lm/final_lm`
+LM=$final_lm.pr1-7
 
-utils/subset_data_dir.sh data/train 1000 data/train.1k
+if [ $stage -le -3 ]; then
+  # Taking a subset, now unused, can be handy for quick experiments,
+  # Full set 77h, reduced set 10.8h,
+  utils/subset_data_dir.sh data/train 15000 data/train_15k
+fi
 
+# Train systems,
+nj=60 # number of parallel jobs,
 
-steps/train_mono.sh --nj 4 --cmd "$train_cmd" data/train.1k data/lang exp/mono
+if [ $stage -le -4 ]; then
+  # Mono,
+  steps/train_mono.sh --nj $nj --cmd "$train_cmd" --cmvn-opts "--norm-means=true --norm-vars=false" \
+    data/train data/lang exp/mono
+  steps/align_si.sh --nj $nj --cmd "$train_cmd" \
+    data/train data/lang exp/mono exp/mono_ali
 
-#show-transitions data/lang/phones.txt exp/tri2a/final.mdl  exp/tri2a/final.occs | perl -e 'while(<>) { if (m/ sil /) { $l = <>; $l =~ m/pdf = (\d+)/|| die "bad line $l";  $tot += $1; }} print "Total silence count $tot\n";'
+  # Deltas,
+  steps/train_deltas.sh --cmd "$train_cmd" --cmvn-opts "--norm-means=true --norm-vars=false" \
+    5000 80000 data/train data/lang exp/mono_ali exp/tri1
+  steps/align_si.sh --nj $nj --cmd "$train_cmd" \
+    data/train data/lang exp/tri1 exp/tri1_ali
+fi
 
+if [ $stage -le -5 ]; then
+  # Deltas again, (full train-set),
+  steps/train_deltas.sh --cmd "$train_cmd" --cmvn-opts "--norm-means=true --norm-vars=false" \
+    5000 80000 data/train data/lang exp/tri1_ali exp/tri2a
+  steps/align_si.sh --nj $nj --cmd "$train_cmd" \
+    data/train data/lang exp/tri2a exp/tri2_ali
+  # Decode,
+  graph_dir=exp/tri2a/graph_${LM}
+  $decode_cmd --mem 4G $graph_dir/mkgraph.log \
+    utils/mkgraph.sh data/lang_${LM} exp/tri2a $graph_dir
+  
+  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13; do
 
+(   steps/decode.sh --nj 4 --cmd "$decode_cmd" --config conf/decode.config \
+    	$graph_dir data/dev/$ch exp/tri2a/decode_dev_$ch
+   steps/decode.sh --nj 4 --cmd "$decode_cmd" --config conf/decode.config \
+	$graph_dir data/test/$ch exp/tri2a/decode_test_$ch ) & 
 
-utils/mkgraph.sh data/lang exp/mono exp/mono/graph
+  done
+fi
 
+if [ $stage -le -6 ]; then
+#  # Train tri3a, which is LDA+MLLT,
+  steps/train_lda_mllt.sh --cmd "$train_cmd" \
+    --splice-opts "--left-context=3 --right-context=3" \
+    5000 80000 data/train data/lang exp/tri2_ali exp/tri3a
+#  # Align with SAT,
+  steps/align_fmllr.sh --nj $nj --cmd "$train_cmd" \
+    data/train data/lang exp/tri3a exp/tri3a_ali
+  # Decode,
+  graph_dir=exp/tri3a/graph_${LM}
+  $decode_cmd --mem 4G $graph_dir/mkgraph.log \
+    utils/mkgraph.sh data/lang_${LM} exp/tri3a $graph_dir
 
-steps/decode.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-  exp/mono/graph data/test exp/mono/decode
+  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13; do
+(     steps/decode.sh --nj 4 --cmd "$decode_cmd" --config conf/decode.config \
+    	$graph_dir data/dev/$ch exp/tri3a/decode_dev_$ch
+     steps/decode.sh --nj 4 --cmd "$decode_cmd" --config conf/decode.config \
+	$graph_dir data/test/$ch exp/tri3a/decode_test_$ch ) &
+  done
 
+fi
 
-# Get alignments from monophone system.
-steps/align_si.sh --nj 8 --cmd "$train_cmd" \
-  data/train data/lang exp/mono exp/mono_ali
+if [ $stage -le 7 ]; then
+#  # Train tri4a, which is LDA+MLLT+SAT,
+  steps/train_sat.sh  --cmd "$train_cmd" \
+    5000 80000 data/train data/lang exp/tri3a_ali exp/tri4a
+  # Decode,
+  graph_dir=exp/tri4a/graph_${LM}
+  $decode_cmd --mem 4G $graph_dir/mkgraph.log \
+    utils/mkgraph.sh data/lang_${LM} exp/tri4a $graph_dir
+ 
+  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13 CH14; do
+      steps/decode_fmllr.sh --nj 4 --cmd "$decode_cmd"  --config conf/decode.config \
+        $graph_dir data/dev/$ch exp/tri4a/decode_dev_$ch
+      steps/decode_fmllr.sh --nj 4 --cmd "$decode_cmd" --config conf/decode.config \
+	$graph_dir data/test/$ch exp/tri4a/decode_test_$ch  
+  done
+fi
 
-# train tri1 [first triphone pass]
-steps/train_deltas.sh --cmd "$train_cmd" \
- 1800 9000 data/train data/lang exp/mono_ali exp/tri1
+nj_mmi=80
+if [ $stage -le -8 ]; then
+  # Align,
+  steps/align_fmllr.sh --nj $nj_mmi --cmd "$train_cmd" \
+    data/train data/lang exp/tri4a exp/tri4a_ali
+fi
 
-# decode tri1
-utils/mkgraph.sh data/lang exp/tri1 exp/tri1/graph
-steps/decode.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-  exp/tri1/graph data/test exp/tri1/decode
+# At this point you can already run the DNN script with fMLLR features:
+if [ $stage -le -9 ]; then
+ local/nnet/run_dnn.sh
+fi
+# exit 0
 
-local/test_decoders.sh # This is a test program that we run only in the
-                       # RM setup, it does some comparison tests on decoders
-                       # to help validate the code.
-#draw-tree data/lang/phones.txt exp/tri1/tree | dot -Tps -Gsize=8,10.5 | ps2pdf - tree.pdf
+if [ $stage -le -9 ]; then
+  # MMI training starting from the LDA+MLLT+SAT systems,
+  steps/make_denlats.sh --nj $nj_mmi --cmd "$decode_cmd" --config conf/decode.conf \
+    --transform-dir exp/$mic/tri4a_ali \
+    data/$mic/train data/lang exp/$mic/tri4a exp/$mic/tri4a_denlats
+fi
 
-# align tri1
-steps/align_si.sh --nj 8 --cmd "$train_cmd" \
-  --use-graphs true data/train data/lang exp/tri1 exp/tri1_ali
+# 4 iterations of MMI seems to work well overall. The number of iterations is
+# used as an explicit argument even though train_mmi.sh will use 4 iterations by
+# default.
+if [ $stage -le -10 ]; then
+  num_mmi_iters=4
+  steps/train_mmi.sh --cmd "$train_cmd" --boost 0.1 --num-iters $num_mmi_iters \
+    data/$mic/train data/lang exp/$mic/tri4a_ali exp/$mic/tri4a_denlats \
+    exp/$mic/tri4a_mmi_b0.1
+fi
+if [ $stage -le -11 ]; then
+  # Decode,
+  graph_dir=exp/$mic/tri4a/graph_${LM}
+  for i in 4 3 2 1; do
+    decode_dir=exp/$mic/tri4a_mmi_b0.1/decode_dev_${i}.mdl_${LM}
+    steps/decode.sh --nj $nj --cmd "$decode_cmd" --config conf/decode.conf \
+      --transform-dir exp/$mic/tri4a/decode_dev_${LM} --iter $i \
+      $graph_dir data/$mic/dev $decode_dir
+    decode_dir=exp/$mic/tri4a_mmi_b0.1/decode_eval_${i}.mdl_${LM}
+    steps/decode.sh --nj $nj --cmd "$decode_cmd"  --config conf/decode.conf \
+      --transform-dir exp/$mic/tri4a/decode_eval_${LM} --iter $i \
+      $graph_dir data/$mic/eval $decode_dir
+  done
+fi
 
-# the tri2a experiments are not needed downstream, so commenting them out.
-# # train tri2a [delta+delta-deltas]
-# steps/train_deltas.sh --cmd "$train_cmd" 1800 9000 \
-#  data/train data/lang exp/tri1_ali exp/tri2a
-
-# # decode tri2a
-# utils/mkgraph.sh data/lang exp/tri2a exp/tri2a/graph
-# steps/decode.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-#   exp/tri2a/graph data/test exp/tri2a/decode
-
-# train and decode tri2b [LDA+MLLT]
-steps/train_lda_mllt.sh --cmd "$train_cmd" \
-  --splice-opts "--left-context=3 --right-context=3" \
- 1800 9000 data/train data/lang exp/tri1_ali exp/tri2b
-utils/mkgraph.sh data/lang exp/tri2b exp/tri2b/graph
-
-steps/decode.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-   exp/tri2b/graph data/test exp/tri2b/decode
-
-# you could run these scripts at this point, that use VTLN.
-# local/run_vtln.sh
-# local/run_vtln2.sh
-
-# Align all data with LDA+MLLT system (tri2b)
-steps/align_si.sh --nj 8 --cmd "$train_cmd" --use-graphs true \
-   data/train data/lang exp/tri2b exp/tri2b_ali
-
-#  Do MMI on top of LDA+MLLT.
-steps/make_denlats.sh --nj 8 --cmd "$train_cmd" \
-  data/train data/lang exp/tri2b exp/tri2b_denlats
-steps/train_mmi.sh data/train data/lang exp/tri2b_ali exp/tri2b_denlats exp/tri2b_mmi
-steps/decode.sh --config conf/decode.config --iter 4 --nj 20 --cmd "$decode_cmd" \
-   exp/tri2b/graph data/test exp/tri2b_mmi/decode_it4
-steps/decode.sh --config conf/decode.config --iter 3 --nj 20 --cmd "$decode_cmd" \
-   exp/tri2b/graph data/test exp/tri2b_mmi/decode_it3
-
-# Do the same with boosting.
-steps/train_mmi.sh --boost 0.05 data/train data/lang \
-   exp/tri2b_ali exp/tri2b_denlats exp/tri2b_mmi_b0.05
-steps/decode.sh --config conf/decode.config --iter 4 --nj 20 --cmd "$decode_cmd" \
-   exp/tri2b/graph data/test exp/tri2b_mmi_b0.05/decode_it4
-steps/decode.sh --config conf/decode.config --iter 3 --nj 20 --cmd "$decode_cmd" \
-   exp/tri2b/graph data/test exp/tri2b_mmi_b0.05/decode_it3
-
-# Do MPE.
-steps/train_mpe.sh data/train data/lang exp/tri2b_ali exp/tri2b_denlats exp/tri2b_mpe
-steps/decode.sh --config conf/decode.config --iter 4 --nj 20 --cmd "$decode_cmd" \
-   exp/tri2b/graph data/test exp/tri2b_mpe/decode_it4
-steps/decode.sh --config conf/decode.config --iter 3 --nj 20 --cmd "$decode_cmd" \
-   exp/tri2b/graph data/test exp/tri2b_mpe/decode_it3
-
-
-## Do LDA+MLLT+SAT, and decode.
-steps/train_sat.sh 1800 9000 data/train data/lang exp/tri2b_ali exp/tri3b
-utils/mkgraph.sh data/lang exp/tri3b exp/tri3b/graph
-steps/decode_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-  exp/tri3b/graph data/test exp/tri3b/decode
-
-(
- utils/mkgraph.sh data/lang_ug exp/tri3b exp/tri3b/graph_ug
- steps/decode_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-   exp/tri3b/graph_ug data/test exp/tri3b/decode_ug
-)
-
-
-# Align all data with LDA+MLLT+SAT system (tri3b)
-steps/align_fmllr.sh --nj 8 --cmd "$train_cmd" --use-graphs true \
-  data/train data/lang exp/tri3b exp/tri3b_ali
-
-
-# # We have now added a script that will help you find portions of your data that
-# # has bad transcripts, so you can filter it out.  Below we demonstrate how to
-# # run this script.
-# steps/cleanup/find_bad_utts.sh --nj 20 --cmd "$train_cmd" data/train data/lang \
-#   exp/tri3b_ali exp/tri3b_cleanup
-# # The following command will show you some of the hardest-to-align utterances in the data.
-# head  exp/tri3b_cleanup/all_info.sorted.txt
-
-## MMI on top of tri3b (i.e. LDA+MLLT+SAT+MMI)
-steps/make_denlats.sh --config conf/decode.config \
-   --nj 8 --cmd "$train_cmd" --transform-dir exp/tri3b_ali \
-  data/train data/lang exp/tri3b exp/tri3b_denlats
-steps/train_mmi.sh data/train data/lang exp/tri3b_ali exp/tri3b_denlats exp/tri3b_mmi
-
-steps/decode_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-  --alignment-model exp/tri3b/final.alimdl --adapt-model exp/tri3b/final.mdl \
-   exp/tri3b/graph data/test exp/tri3b_mmi/decode
-
-# Do a decoding that uses the exp/tri3b/decode directory to get transforms from.
-steps/decode.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-  --transform-dir exp/tri3b/decode  exp/tri3b/graph data/test exp/tri3b_mmi/decode2
-
-# demonstration scripts for online decoding.
-# local/online/run_gmm.sh
-# local/online/run_nnet2.sh
-# local/online/run_baseline.sh
-# Note: for online decoding with pitch, look at local/run_pitch.sh,
-# which calls local/online/run_gmm_pitch.sh
+# DNN training. This script is based on egs/swbd/s5b/local/run_dnn.sh
+# Some of them would be out of date.
+if [ $stage -le -12 ]; then
+  local/nnet/run_dnn.sh $mic
+fi
 
 #
-# local/online/run_nnet2_multisplice.sh
-# local/online/run_nnet2_multisplice_disc.sh
+LM=mixer6.o3g.kn
+if [ $stage -le -13 ]; then
+  graph_dir=exp/tri4a/graph_${LM}
+  $decode_cmd --mem 4G $graph_dir/mkgraph.log \
+    utils/mkgraph.sh data/lang_${LM} exp/tri4a $graph_dir
+ 
+  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13; do
+ (     steps/decode_fmllr.sh --nj 4 --cmd "$decode_cmd"  --config conf/decode.config \
+        $graph_dir data/dev/$ch exp/tri4a/decode_dev_${LM}_$ch
+      steps/decode_fmllr.sh --nj 4 --cmd "$decode_cmd" --config conf/decode.config \
+	$graph_dir data/test/$ch exp/tri4a/decode_test_${LM}_$ch ) &
+  done
+fi
 
-# ##some older scripts:
-# # local/run_nnet2.sh
-# # local/online/run_nnet2_baseline.sh
+echo "Done."
+exit 0;
 
-# ## if you have a WSJ setup, you can use the following script to do joint
-# ## RM/WSJ training; this doesn't require that the phone set be the same, it's
-# ## a demonstration of a multilingual script.
-# local/online/run_nnet2_wsj_joint.sh
-# ## and the discriminative-training continuation of the above.
-# local/online/run_nnet2_wsj_joint_disc.sh
-
-# ## The following is an older way to do multilingual training, from an
-# ## already-trained system.
-# #local/online/run_nnet2_wsj.sh
-
-
-
-#first, train UBM for fMMI experiments.
-steps/train_diag_ubm.sh --silence-weight 0.5 --nj 8 --cmd "$train_cmd" \
-  250 data/train data/lang exp/tri3b_ali exp/dubm3b
-
-# Next, various fMMI+MMI configurations.
-steps/train_mmi_fmmi.sh --learning-rate 0.0025 \
-  --boost 0.1 --cmd "$train_cmd" data/train data/lang exp/tri3b_ali exp/dubm3b exp/tri3b_denlats \
-  exp/tri3b_fmmi_b
-
-for iter in 3 4 5 6 7 8; do
- steps/decode_fmmi.sh --nj 20 --config conf/decode.config --cmd "$decode_cmd" --iter $iter \
-   --transform-dir exp/tri3b/decode  exp/tri3b/graph data/test exp/tri3b_fmmi_b/decode_it$iter &
-done
-
-steps/train_mmi_fmmi.sh --learning-rate 0.001 \
-  --boost 0.1 --cmd "$train_cmd" data/train data/lang exp/tri3b_ali exp/dubm3b exp/tri3b_denlats \
-  exp/tri3b_fmmi_c
-
-for iter in 3 4 5 6 7 8; do
- steps/decode_fmmi.sh --nj 20 --config conf/decode.config --cmd "$decode_cmd" --iter $iter \
-   --transform-dir exp/tri3b/decode  exp/tri3b/graph data/test exp/tri3b_fmmi_c/decode_it$iter &
-done
-
-# for indirect one, use twice the learning rate.
-steps/train_mmi_fmmi_indirect.sh --learning-rate 0.01 --schedule "fmmi fmmi fmmi fmmi mmi mmi mmi mmi" \
-  --boost 0.1 --cmd "$train_cmd" data/train data/lang exp/tri3b_ali exp/dubm3b exp/tri3b_denlats \
-  exp/tri3b_fmmi_d
-
-for iter in 3 4 5 6 7 8; do
- steps/decode_fmmi.sh --nj 20 --config conf/decode.config --cmd "$decode_cmd" --iter $iter \
-   --transform-dir exp/tri3b/decode  exp/tri3b/graph data/test exp/tri3b_fmmi_d/decode_it$iter &
-done
-
-# Demo of "raw fMLLR"
-# local/run_raw_fmllr.sh
-
-
-# You don't have to run all 2 of the below, e.g. you can just run the run_sgmm2.sh
-local/run_sgmm2.sh
-#local/run_sgmm2x.sh
-
-# The following script depends on local/run_raw_fmllr.sh having been run.
-#
-# local/run_nnet2.sh
-
-# Karel's neural net recipe.
-# local/nnet/run_dnn.sh
-
-# Karel's CNN recipe.
-# local/nnet/run_cnn.sh
-
-# Karel's 2D-CNN recipe (from Harish).
-# local/nnet/run_cnn2d.sh
-
-# chain recipe
-# local/chain/run_tdnn_5f.sh
