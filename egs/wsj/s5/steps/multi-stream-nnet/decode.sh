@@ -3,7 +3,7 @@
 # Copyright 2012-2015 Brno University of Technology (author: Karel Vesely), Daniel Povey
 # Apache 2.0
 
-# Begin configuration section.
+# Begin configuration section. 
 nnet=               # non-default location of DNN (optional)
 feature_transform=  # non-default location of feature_transform (optional)
 model=              # non-default location of transition model (optional)
@@ -12,7 +12,7 @@ srcdir=             # non-default location of DNN-dir (decouples model dir from 
 ivector=            # rx-specifier with i-vectors (ark-with-vectors),
 
 blocksoftmax_dims=   # 'csl' with block-softmax dimensions: dim1,dim2,dim3,...
-blocksoftmax_active= # '1' for the 1st block,
+blocksoftmax_active= # '1' for the 1st block, 
 
 stage=0 # stage=1 skips lattice generation
 nj=4
@@ -27,7 +27,7 @@ max_mem=50000000 # approx. limit to memory consumption during minimization in by
 nnet_forward_opts="--no-softmax=true --prior-scale=1.0"
 
 skip_scoring=false
-scoring_opts="--min-lmwt 5 --max-lmwt 17"
+scoring_opts="--min-lmwt 4 --max-lmwt 15"
 
 num_threads=1 # if >1, will use latgen-faster-parallel
 parallel_opts=   # Ignored now.
@@ -41,11 +41,11 @@ echo "$0 $@"  # Print the command line for logging
 
 set -euo pipefail
 
-if [ $# != 3 ]; then
-   echo "Usage: $0 [options] <graph-dir> <data-dir> <decode-dir>"
+if [ $# != 4 ]; then
+   echo "Usage: $0 [options] <graph-dir> <data-dir> <multi_stream-opts> <decode-dir>"
    echo "... where <decode-dir> is assumed to be a sub-directory of the directory"
    echo " where the DNN and transition model is."
-   echo "e.g.: $0 exp/dnn1/graph_tgpr data/test exp/dnn1/decode_tgpr"
+   echo "e.g.: $0 exp/dnn1/graph_tgpr data/test '--stream-combination=31 0:84:168:252:336:420' exp/dnn1/decode_tgpr"
    echo ""
    echo "This script works on plain or modified features (CMN,delta+delta-delta),"
    echo "which are then sent through feature-transform. It works out what type"
@@ -69,7 +69,8 @@ fi
 
 graphdir=$1
 data=$2
-dir=$3
+multi_stream_opts=$3
+dir=$4
 [ -z $srcdir ] && srcdir=`dirname $dir`; # Default model directory one level up from decoding directory.
 sdata=$data/split$nj;
 
@@ -93,7 +94,7 @@ done
 
 # Possibly use multi-threaded decoder
 thread_string=
-[ $num_threads -gt 1 ] && thread_string="-parallel --num-threads=$num_threads"
+[ $num_threads -gt 1 ] && thread_string="-parallel --num-threads=$num_threads" 
 
 
 # PREPARE FEATURE EXTRACTION PIPELINE
@@ -118,20 +119,12 @@ feats="ark,s,cs:copy-feats scp:$sdata/JOB/feats.scp ark:- |"
 
 # add-ivector (optional),
 if [ -e $D/ivector_dim ]; then
-  [ -z $ivector ] && echo "Missing --ivector, they were used in training!" && exit 1
-  # Get the tool,
-  ivector_append_tool=append-vector-to-feats # default,
-  [ -e $D/ivector_append_tool ] && ivector_append_tool=$(cat $D/ivector_append_tool)
-  # Check dims,
-  feats_job_1=$(sed 's:JOB:1:g' <(echo $feats))
-  dim_raw=$(feat-to-dim "$feats_job_1" -)
-  dim_raw_and_ivec=$(feat-to-dim "$feats_job_1 $ivector_append_tool ark:- '$ivector' ark:- |" -)
-  dim_ivec=$((dim_raw_and_ivec - dim_raw))
-  [ $dim_ivec != "$(cat $D/ivector_dim)" ] && \
-    echo "Error, i-vector dim. mismatch (expected $(cat $D/ivector_dim), got $dim_ivec in '$ivector')" && \
-    exit 1
-  # Append to feats,
-  feats="$feats $ivector_append_tool ark:- '$ivector' ark:- |"
+  ivector_dim=$(cat $D/ivector_dim)
+  [ -z $ivector ] && echo "Missing --ivector, they were used in training! (dim $ivector_dim)" && exit 1
+  ivector_dim2=$(copy-vector --print-args=false "$ivector" ark,t:- | head -n1 | awk '{ print NF-3 }') || true
+  [ $ivector_dim != $ivector_dim2 ] && "Error, i-vector dimensionality mismatch! (expected $ivector_dim, got $ivector_dim2 in $ivector)" && exit 1
+  # Append to feats
+  feats="$feats append-vector-to-feats ark:- '$ivector' ark:- |"
 fi
 
 # select a block from blocksoftmax,
@@ -143,16 +136,19 @@ if [ ! -z "$blocksoftmax_dims" ]; then
   dim_block=$(awk -F'[:,]' -v active=$blocksoftmax_active '{ print $active; }' <(echo $blocksoftmax_dims))
   offset=$(awk -F'[:,]' -v active=$blocksoftmax_active '{ sum=0; for(i=1;i<active;i++) { sum += $i }; print sum; }' <(echo $blocksoftmax_dims))
   # create components which select a block,
-  nnet-initialize <(echo "<Copy> <InputDim> $dim_total <OutputDim> $dim_block <BuildVector> $((1+offset)):$((offset+dim_block)) </BuildVector>";
-                    echo "<Softmax> <InputDim> $dim_block <OutputDim> $dim_block") $dir/copy_and_softmax.nnet
+  nnet-initialize <(echo "<Copy> <InputDim> $dim_total <OutputDim> $dim_block <BuildVector> $((1+offset)):$((offset+dim_block)) </BuildVector>"; 
+                    echo "<Softmax> <InputDim> $dim_block <OutputDim> $dim_block") $dir/copy_and_softmax.nnet 
   # nnet is assembled on-the fly, <BlockSoftmax> is removed, while <Copy> + <Softmax> is added,
   nnet="nnet-concat 'nnet-copy --remove-last-components=1 $nnet - |' $dir/copy_and_softmax.nnet - |"
 fi
 
+# Add Multi-stream options
+feats="$feats nnet-forward $feature_transform ark:- ark:- | apply-feature-stream-mask $multi_stream_opts ark:- ark:- |"
+
 # Run the decoding in the queue,
 if [ $stage -le 0 ]; then
   $cmd --num-threads $((num_threads+1)) JOB=1:$nj $dir/log/decode.JOB.log \
-    nnet-forward $nnet_forward_opts --feature-transform=$feature_transform --class-frame-counts=$class_frame_counts --use-gpu=$use_gpu "$nnet" "$feats" ark:- \| \
+    nnet-forward $nnet_forward_opts --class-frame-counts=$class_frame_counts --use-gpu=$use_gpu "$nnet" "$feats" ark:- \| \
     latgen-faster-mapped$thread_string --min-active=$min_active --max-active=$max_active --max-mem=$max_mem --beam=$beam \
     --lattice-beam=$lattice_beam --acoustic-scale=$acwt --allow-partial=true --word-symbol-table=$graphdir/words.txt \
     $model $graphdir/HCLG.fst ark:- "ark:|gzip -c > $dir/lat.JOB.gz" || exit 1;
