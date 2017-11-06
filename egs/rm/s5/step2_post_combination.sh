@@ -38,13 +38,13 @@ fi
 
 # generate the posteriors without substract the priors using decode
 if [ $stage -le 2 ]; then
-  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13; do
+#  for ch in CH01 CH02 CH03 CH04 CH05 CH06 CH07 CH08 CH09 CH10 CH11 CH12 CH13; do
+for ch in CH14; do
+    local/pc/decode.sh --nj 100 --num-threads 3 --cmd "$decode_cmd" --acwt 0.10 --config conf/decode_dnn.config \
+    exp/tri4a/graph_$LM data-fmllr-tri4/dev/$ch $dnn_dir/decode_dev_${ch}_post
 
     local/pc/decode.sh --nj 100 --num-threads 3 --cmd "$decode_cmd" --acwt 0.10 --config conf/decode_dnn.config \
-    exp/tri4a/graph_$LM data-fmllr-tri4/dev/$ch $dnn_dir/decode_dev_${ch}_post____
-
-    local/pc/decode.sh --nj 100 --num-threads 3 --cmd "$decode_cmd" --acwt 0.10 --config conf/decode_dnn.config \
-    exp/tri4a/graph_$LM data-fmllr-tri4/test/$ch $dnn_dir/decode_test_${ch}_post__________ 
+    exp/tri4a/graph_$LM data-fmllr-tri4/test/$ch $dnn_dir/decode_test_${ch}_post
   done
 fi
 
@@ -98,7 +98,7 @@ fi
 #         extcute getstreamweight_from_pca_222.m to get pca weight
 #         extcute getstreamweight_from_tdnn_222.m to get tdnn autoencoder weight 
 #task=frame_AE_splice_5_1
-task=entropy_14ch
+task=top2diff
 if [ $stage -le 4 ]; then
 #  weight_dir=exp/dnn4_pretrain-dbn_dnn
 
