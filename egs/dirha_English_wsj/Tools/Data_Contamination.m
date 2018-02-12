@@ -17,33 +17,38 @@ close all
 
 warning off
 
-
 % Parameters to set
 %-----------------------------------------------------------------------
 
 % Paths of the original datasets
-wsj_folder='/nfsmnt/moissan1/data/mravanelli/DIRHA_English_database/Data/Extracted_data/WSJ0/wsj0'; % Path of the original close-talk WSJ dataset
-dirha_folder='/nfsmnt/moissan1/data/mravanelli/DIRHA_English_database/Data/DIRHA_English_wsj5k_released_last/DIRHA_English_wsj'; % Path of the DIRHA_data
+wsj_folder='/export/corpora4/CHiME4/CHiME3/data/WSJ0/wsj0'; % Path of the original close-talk WSJ dataset
+dirha_folder='/export/b18/xwang/data/dirha_english_wsj_audio'; % Path of the DIRHA_data
 
 % output paths/names
-out_folder='Data_processed'; % Path where to store the processed data
+out_folder='/export/b18/xwang/data/Data_processed'; % Path where to store the processed data
 
 wsj_name='WSJ_contaminated_mic';  %name of the output contaminated WSJ folder
 dirha_name='DIRHA_wsj_oracle_VAD_mic'; %name of the output DIRHA_dataset folder (with an Oracle VAD applied to the 1-minute sequences)
 
 % Selected microphone
-mic_sel='LA6'; % Select here one of the available microphone (e.g., LA6, L1R, LD07, Beam_Circular_Array,Beam_Linear_Array, etc. => Please, see Floorplan)
+mic_sels={'L1C'}; % Select here one of the available microphone (e.g., LA6, L1R, LD07, Beam_Circular_Array,Beam_Linear_Array, etc. => Please, see Floorplan)
+%mic_sels={'L4L','LD07','L3L','L2R','Beam_Circular_Array','Beam_Linear_Array','KA6'};
 
 % Impulse responses for WSJ contamination (Default is ../Training_IRs/*)
-IR_folder{1}='../Training_IRs/T1_O6';
-IR_folder{2}='../Training_IRs/T2_O5';
-IR_folder{3}='../Training_IRs/T3_O3';
+IR_folder{1}='/export/b18/xwang/data/DIRHA_English_phrich_released_june2016_realonly_last/Data/Training_IRs/T1_06';
+IR_folder{2}='/export/b18/xwang/data/DIRHA_English_phrich_released_june2016_realonly_last/Data/Training_IRs/T2_05';
+IR_folder{3}='/export/b18/xwang/data/DIRHA_English_phrich_released_june2016_realonly_last/Data/Training_IRs/T3_03';
 
 %-----------------------------------------------------------------------
 
 % Check version of MATLAB
 vers=version('-release');
 vers=str2double(vers(1:end-1));
+
+
+for mmm = 1 : length(mic_sels)
+
+	mic_sel = mic_sels{mmm};
 
 % Creation of the output folder
 mkdir(out_folder); 
@@ -68,8 +73,8 @@ wsj_folder_clean=strcat(wsj_folder,'/si_tr_s');
 create_folder_str(wsj_folder_clean,strcat(out_folder,'/',wsj_name,'_',mic_sel));
 
 % copy of the transcription files
-copyfile(strcat(wsj_folder,'/doc'),strcat(out_folder,'/doc'));
-copyfile(strcat(wsj_folder,'/transcrp'),strcat(out_folder,'/transcrp'));
+%%copyfile(strcat(wsj_folder,'/doc'),strcat(out_folder,'/doc'));
+%%copyfile(strcat(wsj_folder,'/transcrp'),strcat(out_folder,'/transcrp'));
 
 
 % list of all the original WSJ files
@@ -231,3 +236,6 @@ end
 fprintf('-----------------------------\n');
 fprintf('DONE!\n')
 fprintf('Extracted data available here: \n wsj_contaminated= %s\n dirha= %s\n',strcat(out_folder,'/',wsj_name,'_',mic_sel),strcat(out_folder,'/',dirha_name,'_',mic_sel)');
+
+end
+
