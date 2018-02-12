@@ -23,7 +23,7 @@
 # Config:
 gmmdir=exp/tri4
 data_fmllr=data-fmllr-tri4
-stage=0 # resume training with --stage=N
+stage=2 # resume training with --stage=N
 # End of config.
 . utils/parse_options.sh || exit 1;
 #
@@ -65,11 +65,11 @@ if [ $stage -le 2 ]; then
   ali=${gmmdir}_ali
   feature_transform=exp/dnn_pretrain-dbn/final.feature_transform
   dbn=exp/dnn_pretrain-dbn/6.dbn
-  (tail --pid=$$ -F $dir/log/train_nnet.log 2>/dev/null)& # forward log
+#  (tail --pid=$$ -F $dir/log/train_nnet.log 2>/dev/null)& # forward log
   # Train
-  $cuda_cmd $dir/log/train_nnet.log \
-    steps/nnet/train.sh --feature-transform $feature_transform --dbn $dbn --hid-layers 0 --learn-rate 0.008  \
-    $data_fmllr/tr05_cont_tr90 $data_fmllr/tr05_cont_cv10 data/lang_nosp $ali $ali $dir || exit 1;
+#  $cuda_cmd $dir/log/train_nnet.log \
+#    steps/nnet/train.sh --feature-transform $feature_transform --dbn $dbn --hid-layers 0 --learn-rate 0.008  \
+#    $data_fmllr/tr05_cont_tr90 $data_fmllr/tr05_cont_cv10 data/lang_nosp $ali $ali $dir || exit 1;
   
 
   # Decode (reuse HCLG graph)
