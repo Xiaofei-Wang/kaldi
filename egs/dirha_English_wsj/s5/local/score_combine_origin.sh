@@ -24,10 +24,9 @@
 
 # begin configuration section.
 cmd=run.pl
-min_lmwt=1
-max_lmwt=20
+min_lmwt=7
+max_lmwt=17
 lat_weights=
-word_ins_penalty=0.0,0.5,1.0
 #end configuration section.
 
 help_message="Usage: "$(basename $0)" [options] <data-dir> <graph-dir|lang-dir> <decode-dir1> <decode-dir2> [decode-dir3 ... ] <out-dir>
@@ -58,13 +57,6 @@ symtab=$graphdir/words.txt
 [ ! -f $symtab ] && echo "$0: missing word symbol table '$symtab'" && exit 1;
 [ ! -f $data/text ] && echo "$0: missing reference '$data/text'" && exit 1;
 
-ref_filtering_cmd="cat"
-[ -x local/wer_output_filter ] && ref_filtering_cmd="local/wer_output_filter"
-[ -x local/wer_ref_filter ] && ref_filtering_cmd="local/wer_ref_filter"
-hyp_filtering_cmd="cat"
-[ -x local/wer_output_filter ] && hyp_filtering_cmd="local/wer_output_filter"
-[ -x local/wer_hyp_filter ] && hyp_filtering_cmd="local/wer_hyp_filter"
-
 
 mkdir -p $odir/log
 
@@ -76,34 +68,28 @@ for i in `seq 0 $[num_sys-1]`; do
   lats[$i]="\"ark:gunzip -c ${decode_dirs[$i]}/lat.*.gz |\""
 done
 
-mkdir -p $odir/scoring_kaldi/log
+mkdir -p $odir/scoring/log
 
 cat $data/text | sed 's:<NOISE>::g' | sed 's:<SPOKEN_NOISE>::g' \
-  > $odir/scoring_kaldi/test_filt.txt
-
- for wip in $(echo $word_ins_penalty | sed 's/,/ /g'); do
-    mkdir -p $odir/scoring_kaldi/penalty_$wip/log
+  > $odir/scoring/test_filt.txt
 
 if [ -z "$lat_weights" ]; then
   $cmd LMWT=$min_lmwt:$max_lmwt $odir/log/combine_lats.LMWT.log \
     lattice-combine --inv-acoustic-scale=LMWT ${lats[@]} ark:- \| \
-    lattice-best-path --word-symbol-table=$symtab ark:- ark,t:- \| \
-    utils/int2sym.pl -f 2- $symtab \| \
-    $hyp_filtering_cmd '>' $odir/scoring_kaldi/penalty_$wip/LMWT.txt || exit 1;
+    lattice-mbr-decode --word-symbol-table=$symtab ark:- \
+    ark,t:$odir/scoring/LMWT.tra || exit 1;
 else
   $cmd LMWT=$min_lmwt:$max_lmwt $odir/log/combine_lats.LMWT.log \
     lattice-combine --inv-acoustic-scale=LMWT --lat-weights=$lat_weights \
     ${lats[@]} ark:- \| \
-    lattice-best-path --word-symbol-table=$symtab ark:- ark,t:- \| \
-    utils/int2sym.pl -f 2- $symtab \| \
-    $hyp_filtering_cmd '>' $odir/scoring_kaldi/penalty_$wip/LMWT.txt || exit 1;  
+    lattice-mbr-decode --word-symbol-table=$symtab ark:- \
+    ark,t:$odir/scoring/LMWT.tra || exit 1;
 fi
 
-$cmd LMWT=$min_lmwt:$max_lmwt $odir/scoring_kaldi/log/score.LMWT.log \
-  cat $odir/scoring_kaldi/penalty_$wip/LMWT.txt  \| \
+$cmd LMWT=$min_lmwt:$max_lmwt $odir/scoring/log/score.LMWT.log \
+  cat $odir/scoring/LMWT.tra \| \
+  utils/int2sym.pl -f 2- $symtab \| sed 's:\<UNK\>::g' \| \
   compute-wer --text --mode=present \
-  ark:$odir/scoring_kaldi/test_filt.txt  ark,p:- ">&" $odir/wer_LMWT_$wip || exit 1;
-
-done
+  ark:$odir/scoring/test_filt.txt  ark,p:- ">&" $odir/wer_LMWT || exit 1;
 
 exit 0

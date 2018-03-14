@@ -1,0 +1,5 @@
+input dim=NUMINPUTS name=input
+relu-renorm-layer name=tdnn1 dim=512
+relu-renorm-layer name=tdnn2 dim=24
+relu-renorm-layer name=tdnn3 dim=512
+output-layer name=output dim=NUMINPUTS max-change=1.5 objective-type=quadratic include-log-softmax=false

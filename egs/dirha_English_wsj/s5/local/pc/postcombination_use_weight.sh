@@ -7,7 +7,7 @@ mkdir -p $log
 
 task=$1
 
-utils/queue.pl -l arch=*64 -sync no --mem 10G --gpu 0 -tc 25 JOB=1:100 $log/postcomb.JOB.log \
+utils/queue.pl -l hostname=![hyc]* -sync no --mem 20G --gpu 0 -tc 35 JOB=1:100 $log/postcomb_${task}.JOB.log \
   matlab -singleCompThread \< local/pc/${task}/postcombination_JOB.m
 
 echo "Done."
