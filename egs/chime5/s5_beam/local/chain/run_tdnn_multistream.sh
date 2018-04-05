@@ -139,5 +139,50 @@ if $test_online_decoding && [ $stage -le 17 ]; then
   [ -f $dir/.error ] && echo "$0: there was a problem while decoding" && exit 1
 fi
 
+if [ $stage -le 18 ]; then
+# compute the mmeasure of test sets
+   for data in $test_sets; do
+       local/pm/compute_mmeasure_feats_nnet3.sh \
+	  --nj 8 --use-gpu true \
+	  --extra-left-context $chunk_left_context \
+          --extra-right-context $chunk_right_context \
+          --extra-left-context-initial 0 \
+          --extra-right-context-final 0 \
+	  --online-ivector-dir exp/nnet3${nnet3_affix}/ivectors_${data}_hires \
+	  data/${data}_hires ${dir} exp/chain${nnet3_affix}/data-mmeasure/${data} || exit 1
+   done
 
+   # we need an extra sciprt to generate the best stream file .txt
+   python local/pm/find_best_stream.py \
+                exp/chain${nnet3_affix}/data-mmeasure/dev_beamformit_u01/mmeasure_scores.dev_beamformit_u01_hires.sorted.txt \
+	        exp/chain${nnet3_affix}/data-mmeasure/dev_beamformit_u02/mmeasure_scores.dev_beamformit_u02_hires.sorted.txt \
+		exp/chain${nnet3_affix}/data-mmeasure/dev_beamformit_u03/mmeasure_scores.dev_beamformit_u03_hires.sorted.txt \
+		exp/chain${nnet3_affix}/data-mmeasure/dev_beamformit_u04/mmeasure_scores.dev_beamformit_u04_hires.sorted.txt \
+		exp/chain${nnet3_affix}/data-mmeasure/dev_beamformit_u06/mmeasure_scores.dev_beamformit_u06_hires.sorted.txt \
+		exp/chain${nnet3_affix}/data-mmeasure/best_stream_name.txt || exit 1
+
+
+   local/pm/get_best_stream.sh exp/chain${nnet3_affix}/data-mmeasure/best_stream_name.txt \
+	   ${dir}/decode${lm_suffix}_dev_beamformit_u01 \
+	   ${dir}/decode${lm_suffix}_dev_beamformit_u02 \
+	   ${dir}/decode${lm_suffix}_dev_beamformit_u03 \
+	   ${dir}/decode${lm_suffix}_dev_beamformit_u04 \
+	   ${dir}/decode${lm_suffix}_dev_beamformit_u06 \
+	   ${dir}/decode_dev_beamformit_u12346_mmeasure || exit 1;
+
+fi
+
+if [ $stage -le 19 ]; then
+# compute the phone posterirors of test sets
+   for data in $test_sets; do
+       local/pm/make_phone_feats_nnet3.sh \
+	  --nj 8 --use-gpu true \
+	  --extra-left-context $chunk_left_context \
+          --extra-right-context $chunk_right_context \
+          --extra-left-context-initial 0 \
+          --extra-right-context-final 0 \
+	  --online-ivector-dir exp/nnet3${nnet3_affix}/ivectors_${data}_hires \
+	  data/${data}_hires ${dir} exp/chain${nnet3_affix}/data-phone-posterior/${data} || exit 1
+   done
+fi
 exit 0;

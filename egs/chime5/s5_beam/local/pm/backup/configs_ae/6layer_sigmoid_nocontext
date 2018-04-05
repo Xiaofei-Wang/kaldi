@@ -1,0 +1,8 @@
+input dim=NUMINPUTS name=input
+sigmoid-layer name=tdnn1 dim=512
+sigmoid-layer name=tdnn2 dim=512
+sigmoid-layer name=tdnn3 dim=512
+sigmoid-layer name=tdnn4 dim=24
+sigmoid-layer name=tdnn5 dim=512
+sigmoid-layer name=tdnn6 dim=512
+output-layer name=output dim=NUMINPUTS max-change=1.5 objective-type=quadratic include-log-softmax=false

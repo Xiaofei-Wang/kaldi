@@ -1,0 +1,7 @@
+input dim=NUMINPUTS name=input
+relu-renorm-layer name=tdnn1 dim=512 input=Append(-2,-1,0,1,2)
+relu-renorm-layer name=tdnn2 dim=512 input=Append(-1,2)
+relu-renorm-layer name=tdnn3 dim=24 input=Append(-3,3)
+relu-renorm-layer name=tdnn4 dim=512 input=Append(-7,2)
+relu-renorm-layer name=tdnn5 dim=512 input=Append(-3,3)
+output-layer name=output dim=NUMINPUTS max-change=1.5 objective-type=quadratic include-log-softmax=false

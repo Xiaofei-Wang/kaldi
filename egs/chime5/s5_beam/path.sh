@@ -5,4 +5,5 @@ export PATH=$PWD/utils/:$KALDI_ROOT/tools/openfst/bin:$PWD:$PATH
 . $KALDI_ROOT/tools/config/common_path.sh
 export LC_ALL=C
 export PATH="/home/xwang/anaconda2/bin:$PATH"
+export PYTHONPATH=$KALDI_ROOT/egs/wsj/s5/utils/kaldi-io-for-python:$PYTHONPATH
 
