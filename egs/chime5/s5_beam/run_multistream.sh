@@ -123,11 +123,6 @@ fi
 if [ $stage -le 7 ]; then
   # chain TDNN
   test_sets="dev_beamformit_u01 dev_beamformit_u02 dev_beamformit_u03 dev_beamformit_u04 dev_beamformit_u06"
-  local/chain/run_tdnn_multistream.sh --stage 19 --nj ${nj} --train-set ${train_set}_cleaned --test-sets "$test_sets" --gmm tri3_cleaned --nnet3-affix _${train_set}_cleaned
-fi
-
-if [ $stage -le -8 ]; then
-  # get the oracle of tdnn model
-    ./local/get_oracle.sh exp/chain_train_worn_u100k_cleaned/tdnn1a_sp/decode_dev_${enhancement} exp/chain_train_worn_u100k_cleaned/tdnn1a_sp/decode_dev_${enhancement}_u12346_oracle
+  local/chain/run_tdnn_multistream.sh --stage 20 --nj ${nj} --train-set ${train_set}_cleaned --test-sets "$test_sets" --gmm tri3_cleaned --nnet3-affix _${train_set}_cleaned
 fi
 
