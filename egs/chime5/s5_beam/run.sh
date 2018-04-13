@@ -38,10 +38,10 @@ test_sets="dev_worn dev_${enhancement}_ref"
 
 if [ $stage -le 1 ]; then
   # skip u03 as they are missing
-#  for mictype in worn u01 u02 u04 u05 u06; do
-#    local/prepare_data.sh --mictype ${mictype} \
-#			  ${audio_dir}/train ${json_dir}/train data/train_${mictype}
-#  done
+  for mictype in worn u01 u02 u04 u05 u06; do
+    local/prepare_data.sh --mictype ${mictype} \
+			  ${audio_dir}/train ${json_dir}/train data/train_${mictype}
+  done
   #eval#for dataset in dev eval; do
   for dataset in dev; do
     for mictype in worn; do
@@ -52,7 +52,7 @@ if [ $stage -le 1 ]; then
   done
 fi
 
-if [ $stage -le -2 ]; then
+if [ $stage -le 2 ]; then
   local/prepare_dict.sh
 
   utils/prepare_lang.sh \
@@ -65,14 +65,14 @@ if [ $stage -le -2 ]; then
 fi
 
 LM=data/srilm/best_3gram.gz
-if [ $stage -le -3 ]; then
+if [ $stage -le 3 ]; then
   # Compiles G for chime5 trigram LM
   utils/format_lm.sh \
 		data/lang $LM data/local/dict/lexicon.txt data/lang
 
 fi
 
-if [ $stage -le -4 ]; then
+if [ $stage -le 4 ]; then
   # Beamforming using reference arrays
   # enhanced WAV directory
   enhandir=enhan
@@ -93,7 +93,7 @@ if [ $stage -le -4 ]; then
   done
 fi
 
-if [ $stage -le -5 ]; then
+if [ $stage -le 5 ]; then
   # remove possibly bad sessions (P11_S03, P52_S19, P53_S24, P54_S24)
   # see http://spandh.dcs.shef.ac.uk/chime_challenge/data.html for more details
   utils/copy_data_dir.sh data/train_worn data/train_worn_org # back up
@@ -117,7 +117,7 @@ if [ $stage -le -5 ]; then
   done
 fi
 
-if [ $stage -le -6 ]; then
+if [ $stage -le 6 ]; then
   # Split speakers up into 3-minute chunks.  This doesn't hurt adaptation, and
   # lets us use more jobs for decoding etc.
   for dset in ${train_set} ${test_sets}; do
@@ -126,7 +126,7 @@ if [ $stage -le -6 ]; then
   done
 fi
 
-if [ $stage -le -7 ]; then
+if [ $stage -le 7 ]; then
   # Now make MFCC features.
   # mfccdir should be some place with a largish disk where you
   # want to store MFCC features.
@@ -139,19 +139,19 @@ if [ $stage -le -7 ]; then
   done
 fi
 
-if [ $stage -le -8 ]; then
+if [ $stage -le 8 ]; then
   # make a subset for monophone training
   utils/subset_data_dir.sh --shortest data/${train_set} 100000 data/${train_set}_100kshort
   utils/subset_data_dir.sh data/${train_set}_100kshort 30000 data/${train_set}_30kshort
 fi
 
-if [ $stage -le -9 ]; then
+if [ $stage -le 9 ]; then
   # Starting basic training on MFCC features
   steps/train_mono.sh --nj $nj --cmd "$train_cmd" \
 		      data/${train_set}_30kshort data/lang exp/mono
 fi
 
-if [ $stage -le -10 ]; then
+if [ $stage -le 10 ]; then
   steps/align_si.sh --nj $nj --cmd "$train_cmd" \
 		    data/${train_set} data/lang exp/mono exp/mono_ali
 
@@ -159,7 +159,7 @@ if [ $stage -le -10 ]; then
 			2500 30000 data/${train_set} data/lang exp/mono_ali exp/tri1
 fi
 
-if [ $stage -le -11 ]; then
+if [ $stage -le 11 ]; then
   steps/align_si.sh --nj $nj --cmd "$train_cmd" \
 		    data/${train_set} data/lang exp/tri1 exp/tri1_ali
 
@@ -167,7 +167,7 @@ if [ $stage -le -11 ]; then
 			  4000 50000 data/${train_set} data/lang exp/tri1_ali exp/tri2
 fi
 
-if [ $stage -le -12 ]; then
+if [ $stage -le 12 ]; then
   utils/mkgraph.sh data/lang exp/tri2 exp/tri2/graph
   for dset in ${test_sets}; do
     steps/decode.sh --nj $decode_nj --cmd "$decode_cmd"  --num-threads 4 \
@@ -176,7 +176,7 @@ if [ $stage -le -12 ]; then
   wait
 fi
 
-if [ $stage -le -14 ]; then
+if [ $stage -le 14 ]; then
   steps/align_si.sh --nj $nj --cmd "$train_cmd" \
 		    data/${train_set} data/lang exp/tri2 exp/tri2_ali
 
@@ -184,7 +184,7 @@ if [ $stage -le -14 ]; then
 		     5000 100000 data/${train_set} data/lang exp/tri2_ali exp/tri3
 fi
 
-if [ $stage -le -15 ]; then
+if [ $stage -le 15 ]; then
   utils/mkgraph.sh data/lang exp/tri3 exp/tri3/graph
   for dset in ${test_sets}; do
     steps/decode_fmllr.sh --nj $decode_nj --cmd "$decode_cmd"  --num-threads 4 \
@@ -193,14 +193,14 @@ if [ $stage -le -15 ]; then
   wait
 fi
 
-if [ $stage -le -16 ]; then
+if [ $stage -le 16 ]; then
   # The following script cleans the data and produces cleaned data
   steps/cleanup/clean_and_segment_data.sh --nj ${nj} --cmd "$train_cmd" \
     --segmentation-opts "--min-segment-length 0.3 --min-new-segment-length 0.6" \
     data/${train_set} data/lang exp/tri3 exp/tri3_cleaned data/${train_set}_cleaned
 fi
 
-if [ $stage -le -17 ]; then
+if [ $stage -le 17 ]; then
   # chain TDNN
   local/chain/run_tdnn.sh --nj ${nj} --train-set ${train_set}_cleaned --test-sets "$test_sets" --gmm tri3_cleaned --nnet3-affix _${train_set}_cleaned
 fi
