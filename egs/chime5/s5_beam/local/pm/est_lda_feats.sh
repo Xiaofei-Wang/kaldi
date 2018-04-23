@@ -134,6 +134,8 @@ if [ $stage -le 1 ]; then
     weight-silence-post 0.0 $silphonelist $alidir/final.mdl ark:- ark:- \| \
     acc-lda --rand-prune=$randprune $alidir/final.mdl "${nnet_feats}" ark,s,cs:- $ldadir/lda_acc.JOB || exit 1;
 
+fi
+
   lda_acc_str=""
   for ((n=1; n<=nj; n++)); do
     lda_acc_str=$lda_acc_str" "$ldadir/lda_acc.${n}
@@ -142,7 +144,6 @@ if [ $stage -le 1 ]; then
   echo "$0: Estimating LDA matrix"
   $cmd $logdir/lda_est.log \
   est-lda $est_lda_opts $lda_data/lda.mat $lda_acc_str || exit 1;
-fi
 
 echo "$0: done creating lda."
 
