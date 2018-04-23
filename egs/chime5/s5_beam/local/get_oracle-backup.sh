@@ -13,9 +13,7 @@ word_ins_penalty=0.0,0.5,1.0
 cmd=run.pl
 min_lmwt=7
 max_lmwt=17
-stage=0
-data_set=train
-test_sets="u01 u02 u03 u04 u05 u06"
+stage=1
 
 sdir=$1
 dir=$2
@@ -27,41 +25,41 @@ mkdir -p $dir
 
 if [ $stage -le 0 ]; then
 
-for mic in $test_sets; do
-    nump=1
+for mic in u01 u02 u03 u04 u06; do
+    num=1
     while read line; do
         i1=`echo ${line} | awk '{print $1}'`
         echo ${line} > $dir/test_filt_${i1}.txt	    
      
 	for wip in $(echo $word_ins_penalty | sed 's/,/ /g');do
-          mkdir -p $dir/${data_set}_beamformit_$mic/scoring_kaldi/penalty_$wip/log
-	  mkdir -p $dir/$wip/${data_set}_beamformit_$mic
+          mkdir -p $dir/dev_beamformit_$mic/scoring_kaldi/penalty_$wip/log
+	  mkdir -p $dir/$wip/dev_beamformit_$mic
 
-           $cmd LMWT=$min_lmwt:$max_lmwt $dir/${data_set}_beamformit_$mic/scoring_kaldi/penalty_$wip/log/score.LMWT.log \
+           $cmd LMWT=$min_lmwt:$max_lmwt $dir/dev_beamformit_$mic/scoring_kaldi/penalty_$wip/log/score.LMWT.log \
 	      cat ${sdir}_${mic}/scoring_kaldi/penalty_$wip/LMWT.txt \| \
 	      compute-wer --text --mode=present \
-	      ark:$dir/test_filt_${i1}.txt ark,p:- ">&" $dir/$wip/${data_set}_beamformit_$mic/wer_LMWT_${wip}_${data_set}_beamformit_${mic}_${nump} || exit 1;
+	      ark:$dir/test_filt_${i1}.txt ark,p:- ">&" $dir/$wip/dev_beamformit_$mic/wer_LMWT_${wip}_dev_beamformit_${mic}_${num} || exit 1;
            for lmwt in $(seq $min_lmwt $max_lmwt); do
-	     grep $i1 ${sdir}_${mic}/scoring_kaldi/penalty_$wip/${lmwt}.txt >> $dir/${data_set}_beamformit_$mic/scoring_kaldi/penalty_$wip/${lmwt}.txt
+	     grep $i1 ${sdir}_${mic}/scoring_kaldi/penalty_$wip/${lmwt}.txt >> $dir/dev_beamformit_$mic/scoring_kaldi/penalty_$wip/${lmwt}.txt
            done
         done
 	 rm $dir/test_filt_${i1}.txt
-	 nump=$(($nump+1));
+	 num=$(($num+1));
     done < ${sdir}_$mic/scoring_kaldi/test_filt.txt
 done
 
-for num in `seq 1 $(($nump-1))`; do 
+for num in `seq 1 7437`; do 
     for wip in $(echo $word_ins_penalty | sed 's/,/ /g'); do
 	for lmwt in $(seq $min_lmwt $max_lmwt); do
-	    for mic in $test_sets; do
-		grep WER $dir/$wip/${data_set}_beamformit_$mic/wer_${lmwt}_${wip}_${data_set}_beamformit_${mic}_${num} /dev/null
+	    for mic in u01 u02 u03 u04 u06; do
+		grep WER $dir/$wip/dev_beamformit_$mic/wer_${lmwt}_${wip}_dev_beamformit_${mic}_${num} /dev/null
 	    done | utils/best_wer.sh >& $dir/$wip/best_wer_${lmwt}_${wip}_${num} || exit 1;
 	    best_wer_file=$(awk '{print $NF}' $dir/$wip/best_wer_${lmwt}_${wip}_${num})
 #	    echo $best_wer_file
 	    best_mic=$(echo $best_wer_file | awk -F_ '{N=NF-1; print $N}')
 #	    echo $best_mic
 	    mkdir -p $dir/scoring_kaldi/penalty_$wip	    
-	    sed -n ${num}p ${dir}/${data_set}_beamformit_${best_mic}/scoring_kaldi/penalty_$wip/${lmwt}.txt >> $dir/scoring_kaldi/penalty_$wip/${lmwt}.txt
+	    sed -n ${num}p ${dir}/dev_beamformit_${best_mic}/scoring_kaldi/penalty_$wip/${lmwt}.txt >> $dir/scoring_kaldi/penalty_$wip/${lmwt}.txt
 
 	done
     done
