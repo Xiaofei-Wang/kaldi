@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import sys, os, logging, numpy as np
 import cPickle as pickle
-import compute_mtd_weighted_2
+import compute_mtd
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -19,9 +19,8 @@ numexpr.set_num_threads(1)
 np.random.seed(42)
 ##################################
 def wrap_compute_m_measure(Y): #phone post or state post
-#  delta_t = range(1,6)+range(10,81,5)
-  delta_t = range(10, 81, 5)
-  m_curve = compute_mtd_weighted_2.compute_mtd(Y, delta_t)
+  delta_t = range(1,6)+range(10,81,5)
+  m_curve = compute_mtd.compute_mtd(Y, delta_t)
 
   return m_curve
 
