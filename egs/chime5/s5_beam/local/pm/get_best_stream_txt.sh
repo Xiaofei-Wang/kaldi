@@ -14,8 +14,8 @@ cmd=run.pl
 min_lmwt=7
 max_lmwt=17
 stage=0
-data_set=dev
-test_sets="u01 u02 u03 u04 u06"
+data_set=train
+test_sets="u01 u02 u03 u04 u05 u06"
 
 sdir=$1
 dir=$2

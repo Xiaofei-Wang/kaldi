@@ -28,6 +28,8 @@ mkdir -p $dir
 if [ $stage -le 0 ]; then
 
 for mic in $test_sets; do
+    mkdir -p $dir/${data_set}_beamformit_$mic/scoring_kaldi
+    cp -a ${sdir}_${mic}/scoring_kaldi $dir/${data_set}_beamformit_$mic
     nump=1
     while read line; do
         i1=`echo ${line} | awk '{print $1}'`
@@ -35,15 +37,15 @@ for mic in $test_sets; do
      
 	for wip in $(echo $word_ins_penalty | sed 's/,/ /g');do
           mkdir -p $dir/${data_set}_beamformit_$mic/scoring_kaldi/penalty_$wip/log
-	  mkdir -p $dir/$wip/${data_set}_beamformit_$mic
+	      mkdir -p $dir/$wip/${data_set}_beamformit_$mic
 
-           $cmd LMWT=$min_lmwt:$max_lmwt $dir/${data_set}_beamformit_$mic/scoring_kaldi/penalty_$wip/log/score.LMWT.log \
+          $cmd LMWT=$min_lmwt:$max_lmwt $dir/${data_set}_beamformit_$mic/scoring_kaldi/penalty_$wip/log/score.LMWT.log \
 	      cat ${sdir}_${mic}/scoring_kaldi/penalty_$wip/LMWT.txt \| \
 	      compute-wer --text --mode=present \
 	      ark:$dir/test_filt_${i1}.txt ark,p:- ">&" $dir/$wip/${data_set}_beamformit_$mic/wer_LMWT_${wip}_${data_set}_beamformit_${mic}_${nump} || exit 1;
-           for lmwt in $(seq $min_lmwt $max_lmwt); do
-	     grep $i1 ${sdir}_${mic}/scoring_kaldi/penalty_$wip/${lmwt}.txt >> $dir/${data_set}_beamformit_$mic/scoring_kaldi/penalty_$wip/${lmwt}.txt
-           done
+#           for lmwt in $(seq $min_lmwt $max_lmwt); do
+#	         grep $i1 ${sdir}_${mic}/scoring_kaldi/penalty_$wip/${lmwt}.txt >> $dir/${data_set}_beamformit_$mic/scoring_kaldi/penalty_$wip/${lmwt}.txt
+#           done
         done
 	 rm $dir/test_filt_${i1}.txt
 	 nump=$(($nump+1));
@@ -54,7 +56,7 @@ for num in `seq 1 $(($nump-1))`; do
     for wip in $(echo $word_ins_penalty | sed 's/,/ /g'); do
 	for lmwt in $(seq $min_lmwt $max_lmwt); do
 	    for mic in $test_sets; do
-		grep WER $dir/$wip/${data_set}_beamformit_$mic/wer_${lmwt}_${wip}_${data_set}_beamformit_${mic}_${num} /dev/null
+		  grep WER $dir/$wip/${data_set}_beamformit_$mic/wer_${lmwt}_${wip}_${data_set}_beamformit_${mic}_${num} /dev/null
 	    done | utils/best_wer.sh >& $dir/$wip/best_wer_${lmwt}_${wip}_${num} || exit 1;
 	    best_wer_file=$(awk '{print $NF}' $dir/$wip/best_wer_${lmwt}_${wip}_${num})
 #	    echo $best_wer_file

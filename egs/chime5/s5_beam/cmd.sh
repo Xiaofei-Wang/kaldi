@@ -13,3 +13,5 @@
 export train_cmd="queue.pl --mem 2G"
 export decode_cmd="queue.pl --mem 4G"
 
+export cuda_cmd="queue.pl -l 'hostname=b1[12345678]*|c*' --gpu 1"
+
