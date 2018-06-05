@@ -10,6 +10,7 @@
 nj=96
 decode_nj=20
 stage=7
+mlpstage=25
 enhancement=beamformit # for a new enhancement method,
                        # change this variable and stage 4
 # End configuration section
@@ -137,6 +138,6 @@ fi
 if [ $stage -le 7 ]; then
   # chain TDNN
   test_sets="train_beamformit_u01 train_beamformit_u02 train_beamformit_u03 train_beamformit_u04 train_beamformit_u05 train_beamformit_u06"
-  local/chain/run_tdnn_mlp.sh --stage 23 --nj ${nj} --train-set ${train_set}_cleaned --test-sets "$test_sets" --gmm tri3_cleaned --nnet3-affix _${train_set}_cleaned
+  local/chain/run_tdnn_mlp.sh --stage $mlpstage --nj ${nj} --train-set ${train_set}_cleaned --test-sets "$test_sets" --gmm tri3_cleaned --nnet3-affix _${train_set}_cleaned
 fi
 
