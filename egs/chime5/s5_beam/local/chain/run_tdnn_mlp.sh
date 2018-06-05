@@ -61,7 +61,7 @@ fi
 # run those things.
 local/nnet3/run_ivector_common_multistream.sh --stage $stage \
                                   --train-set $train_set \
-				  --test-sets "$test_sets" \
+				                  --test-sets "$test_sets" \
                                   --gmm $gmm \
                                   --nnet3-affix "$nnet3_affix" || exit 1;
 
@@ -258,7 +258,7 @@ fi
 if [ $stage -le 23 ];then
     local/pytorch/clean_mlp_training_data.sh \
         exp/chain_train_worn_u100k_cleaned/tdnn1a_sp/decode_train_${enhancement}_u123456_oracle \
-        $mlp_feats $mlp_targets $mlp_pm/mlp_feats_filt_wer70 $mlp_pm/mlp_targets_filt_wer70 || exit 1;
+        $mlp_feats $mlp_targets $mlp_pm/mlp_feats_filt_wer70_1best $mlp_pm/mlp_targets_filt_wer70_1best || exit 1;
 fi
 
 if [ $stage -le -24 ]; then
@@ -308,10 +308,10 @@ if [ $stage -le -24 ]; then
     fi
 fi
 
-mlp_feats_filt=$mlp_pm/mlp_feats_filt_wer70
-mlp_targets_filt=$mlp_pm/mlp_targets_filt_wer70
-dir=$mlp_pm/mlp_wer70
-if [ $stage -le -25 ]; then
+mlp_feats_filt=$mlp_pm/mlp_feats_filt_wer70_1best
+mlp_targets_filt=$mlp_pm/mlp_targets_filt_wer70_1best
+mlp_dir=$mlp_pm/mlp_2layer_256node_2context
+if [ $stage -le 25 ]; then
    echo "$0 [PYTORCH] Training MLP on GPU"
    train_data=""
    cv_data=""
@@ -322,14 +322,14 @@ if [ $stage -le -25 ]; then
    train_label=$mlp_targets_filt/train
    cv_label=$mlp_targets_filt/cv
 
-   opts=" --mvn --nlayers=2 --nunits=256 --context=5 --ntargets=6 --train-data-list=$train_data --cv-data-list=$cv_data --cv-tgt=$cv_label --train-tgt=$train_label --dir=$dir --lr=1e-3"
-   ${cuda_cmd} $dir/train_mlp.log bash ./local/pytorch/train_mlp.sh --gpu yes "${opts}" "local/pytorch/train_mlp.py" || exit 1;
+   opts=" --mvn --nlayers=2 --nunits=256 --context=0 --ntargets=6 --train-data-list=$train_data --cv-data-list=$cv_data --cv-tgt=$cv_label --train-tgt=$train_label --dir=$mlp_dir --lr=1e-3"
+   ${cuda_cmd} $mlp_dir/train_mlp.log bash ./local/pytorch/train_mlp.sh --gpu yes "${opts}" "local/pytorch/train_mlp.py" || exit 1;
 #   python local/pytorch/train_mlp.py --mvn --ntargets=6 --train-data-list=$train_data --cv-data-list=$cv_data --cv-tgt=$cv_label --train-tgt=$train_label --dir=$mlp_pm/mlp_debug --lr=1e-4
    wait
 fi
 
 iter=19
-if [ $stage -le -26 ]; then
+if [ $stage -le 26 ]; then
     echo "$0 [PYTORCH] Test MLP using Dev set"
     eval_data_list=""
     eval_tgt=$mlp_targets/dev
@@ -338,10 +338,10 @@ if [ $stage -le -26 ]; then
         eval_data_list+="$mlp_feats/$data,"
     done
 
-    dir=$mlp_pm/mlp_2layer_256node_2context/decode_${iter}_mlp_selection_u12346_withdataclean
+    dir=$mlp_dir/decode_${iter}_mlp_selection_u12346_withdataclean
 #    opts=" --eval-tgt=${eval_tgt} --eval-data-list=$eval_data_list --nnet-dir=$mlp_pm/mlp --iter=$iter --dir=$dir"
 #    ${train_cmd} $dir/eval_mlp.log bash ./local/pytorch/eval_mlp.sh --gpu no "${opts}" "local/pytorch/eval_mlp.py" || exit 1;
-    python local/pytorch/eval_mlp.py --eval-tgt=${eval_tgt} --eval-data-list=$eval_data_list --nnet-dir=$mlp_pm/mlp --iter=$iter --dir=$dir
+    python local/pytorch/eval_mlp.py --eval-tgt=${eval_tgt} --eval-data-list=$eval_data_list --nnet-dir=$mlp_dir --iter=$iter --dir=$dir
 
     echo "Get the best WER using the mlp selection"
     stream_selection_file=$dir/utt_best_stream_1-based

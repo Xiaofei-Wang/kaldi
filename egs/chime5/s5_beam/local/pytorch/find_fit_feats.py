@@ -50,6 +50,8 @@ for utt_name, wer_utt in utt_wer.iteritems():
         min_indix = [random.choice(range(6))]
     else:
         min_value, min_index = locate_min(wer_utt)
+        if len(list(min_index)) > 1:
+            flag = 1
         if min_value > 69.99:
             flag = 1
     print(min_index)

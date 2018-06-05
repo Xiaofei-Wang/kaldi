@@ -5,7 +5,7 @@ set -euo pipefail
 
 # First the options that are passed through to run_ivector_common.sh
 # (some of which are also used in this script directly).
-stage=2
+stage=5
 test_sets="train_beamformit_u01 train_beamformit_u02 train_beamformit_u03 train_beamformit_u04 train_beamformit_u05 train_beamformit_u06"
 
 # The rest are configs specific to this script.  Most of the parameters
@@ -54,7 +54,7 @@ if [ $stage -le 2 ]; then
 
 fi
 
-if [ $stage -le -3 ]; then
+if [ $stage -le 3 ]; then
     echo "We must do the feature filtering to avoid the very bad performance and inf/nan!"
 
     for data in $test_sets; do
@@ -68,15 +68,17 @@ if [ $stage -le -3 ]; then
 
 fi
 
-if [ $stage -le -4 ]; then
+if [ $stage -le 4 ]; then
 # make the new targets
 
-    cp -a $mlp_feats_filt/train_beamformit_u01 $mlp_targets_filt || exit 1;
+    cp -a $mlp_feats_filt/train_beamformit_u01 $mlp_targets_filt || exit 1; 
 
     local/pytorch/make_target.py \
 	    <(copy-feats scp:$mlp_feats_filt/train_beamformit_u01/feats.scp ark:-) \
 	    $mlp_targets_filt/utt_target |\
     copy-feats ark:- ark,scp:$mlp_targets_filt/feats.ark,$mlp_targets_filt/feats.scp || exit 1
+    cp $mlp_targets_filt/train_beamformit_u01/utt2spk $mlp_targets_filt/utt2spk
+    utils/utt2spk_to_spk2utt.pl $mlp_targets_filt/utt2spk > $mlp_feats_filt/spk2utt
     bash utils/data/fix_data_dir.sh $mlp_targets_filt
 
     N0=$(cat $mlp_feats_filt/train_beamformit_u01/feats.scp | wc -l)
@@ -88,18 +90,18 @@ if [ $stage -le -4 ]; then
 
 fi
 
-if [ $stage -le -5 ]; then
+if [ $stage -le 5 ]; then
     for data in $test_sets; do
         echo "create feats for $data";
-        utils/subset_data_dir.sh --first $mlp_feats_filt/$data 30000 $mlp_feats_filt/$data/train || exit 1
-        utils/subset_data_dir.sh --last $mlp_feats_filt/$data 3000 $mlp_feats_filt/$data/cv || exit 1
+        utils/subset_data_dir.sh --first $mlp_feats_filt/$data 11000 $mlp_feats_filt/$data/train || exit 1
+        utils/subset_data_dir.sh --last $mlp_feats_filt/$data 1000 $mlp_feats_filt/$data/cv || exit 1
         compute-cmvn-stats scp:$mlp_feats_filt/$data/train/feats.scp $mlp_feats_filt/$data/train/g.cmvn-stats
         compute-cmvn-stats scp:$mlp_feats_filt/$data/cv/feats.scp $mlp_feats_filt/$data/cv/g.cmvn-stats
     done
 
      echo "create targets for $data"
-     utils/subset_data_dir.sh --first $mlp_targets_filt 30000 $mlp_targets_filt/train || exit 1
-     utils/subset_data_dir.sh --last $mlp_targets_filt 3000 $mlp_targets_filt/cv || exit 1
+     utils/subset_data_dir.sh --first $mlp_targets_filt 11000 $mlp_targets_filt/train || exit 1
+     utils/subset_data_dir.sh --last $mlp_targets_filt 1000 $mlp_targets_filt/cv || exit 1
 fi
 
 if [ $stage -le -6 ]; then
