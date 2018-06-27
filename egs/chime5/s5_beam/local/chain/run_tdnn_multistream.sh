@@ -180,7 +180,7 @@ if [ $stage -le 18 ]; then
 fi
 
 if [ $stage -le 19 ]; then
-# compute the phone posterirors of test sets
+   echo "compute the phone posterirors of test sets"
    for data in $test_sets; do
        local/pm/make_phone_feats_nnet3.sh \
 	  --nj 8 --use-gpu true \
@@ -190,6 +190,18 @@ if [ $stage -le 19 ]; then
           --extra-right-context-final 0 \
 	  --online-ivector-dir exp/nnet3${nnet3_affix}/ivectors_${data}_hires \
 	  data/${data}_hires ${dir} exp/chain${nnet3_affix}/data-phone-posterior/${data} || exit 1
+   done
+
+   echo "compute the logit phone posterirors of test sets"
+   for data in $test_sets; do
+       local/pm/make_logit_phone_feats_nnet3.sh \
+	  --nj 8 --use-gpu true \
+	  --extra-left-context $chunk_left_context \
+          --extra-right-context $chunk_right_context \
+          --extra-left-context-initial 0 \
+          --extra-right-context-final 0 \
+	  --online-ivector-dir exp/nnet3${nnet3_affix}/ivectors_${data}_hires \
+	  data/${data}_hires ${dir} exp/chain${nnet3_affix}/data-logit-phone-posterior/${data} || exit 1
    done
 fi
 

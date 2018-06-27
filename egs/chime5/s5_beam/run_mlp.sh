@@ -10,7 +10,7 @@
 nj=96
 decode_nj=20
 stage=7
-mlpstage=25
+mlpstage=27
 enhancement=beamformit # for a new enhancement method,
                        # change this variable and stage 4
 # End configuration section
@@ -37,34 +37,34 @@ test_sets=dev_${enhancement}_ref
 # This script also needs the phonetisaurus g2p, srilm, beamformit
 ./local/check_tools.sh || exit 1
 
-if [ $stage -le -1 ]; then
+if [ $stage -le 1 ]; then
   # Beamforming using reference arrays
   # enhanced WAV directory
   enhandir=enhan
-#  for dset in train; do
-#    for mictype in u01 u02 u03 u04 u05 u06; do
-#      local/run_beamformit.sh --cmd "$train_cmd" \
-#			      ${audio_dir}/${dset} \
-#			      ${enhandir}/${dset}_${enhancement}_${mictype} \
-#			      ${mictype}
-#    done
-#  done
+  for dset in train; do
+    for mictype in u01 u02 u03 u04 u05 u06; do
+      local/run_beamformit.sh --cmd "$train_cmd" \
+			      ${audio_dir}/${dset} \
+			      ${enhandir}/${dset}_${enhancement}_${mictype} \
+			      ${mictype}
+    done
+  done
 
 #  # remove some parts
-#  for dset in train; do
-#    for mictype in u01 u02 u03 u04 u05 u06; do
+  for dset in train; do
+    for mictype in u01 u02 u03 u04 u05 u06; do
 
-#      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S05* 
-#      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S12* 
-#      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S22*
-#      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S18*
-#      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S06*
+      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S05* 
+      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S12* 
+      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S22*
+      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S18*
+      rm ${enhandir}/${dset}_${enhancement}_${mictype}/S06*
 
-#    done
-#  done 
+    done
+  done 
  
-#  cp -a $json_dir data/multi_stream_mlp_transcriptions
-#  rm data/multi_stream_mlp_transcriptions/train/S05.json data/multi_stream_mlp_transcriptions/train/S12.json data/multi_stream_mlp_transcriptions/train/S22.json  
+  cp -a $json_dir data/multi_stream_mlp_transcriptions
+  rm data/multi_stream_mlp_transcriptions/train/S05.json data/multi_stream_mlp_transcriptions/train/S12.json data/multi_stream_mlp_transcriptions/train/S22.json  
   #############################
 
   for dset in train; do
@@ -76,7 +76,7 @@ if [ $stage -le -1 ]; then
 fi
 
 
-if [ $stage -le -2 ]; then
+if [ $stage -le 2 ]; then
   # Split speakers up into 3-minute chunks.  This doesn't hurt adaptation, and
   # lets us use more jobs for decoding etc.
   for mictype in u01 u02 u03 u04 u05 u06; do
@@ -88,7 +88,7 @@ if [ $stage -le -2 ]; then
   done
 fi
 
-if [ $stage -le -3 ]; then
+if [ $stage -le 3 ]; then
   # Now make MFCC features.
   # mfccdir should be some place with a largish disk where you
   # want to store MFCC features.
@@ -105,7 +105,7 @@ if [ $stage -le -3 ]; then
 fi
 
 
-if [ $stage -le -4 ]; then
+if [ $stage -le 4 ]; then
 #  utils/mkgraph.sh data/lang exp/tri2 exp/tri2/graph
   for mictype in u01 u02 u03 u04 u05 u06; do
     test_sets=train_${enhancement}_${mictype}
@@ -117,7 +117,7 @@ if [ $stage -le -4 ]; then
   done
 fi
 
-if [ $stage -le -5 ]; then
+if [ $stage -le 5 ]; then
 #  utils/mkgraph.sh data/lang exp/tri3 exp/tri3/graph
   for mictype in u01 u02 u03 u04 u05 u06; do
     test_sets=train_${enhancement}_${mictype}
@@ -128,12 +128,6 @@ if [ $stage -le -5 ]; then
   done
   wait
 fi
-
-#if [ $stage -le -6 ]; then
-
-#   ./local/get_oracle.sh exp/tri3/decode_dev_${enhancement} exp/tri3/decode_dev_${enhancement}_u12346_oracle
-
-#fi
 
 if [ $stage -le 7 ]; then
   # chain TDNN
