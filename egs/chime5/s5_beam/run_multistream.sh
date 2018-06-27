@@ -9,7 +9,7 @@
 # Begin configuration section.
 nj=96
 decode_nj=20
-stage=1
+stage=7
 enhancement=beamformit # for a new enhancement method,
                        # change this variable and stage 4
 # End configuration section
@@ -90,7 +90,7 @@ if [ $stage -le 3 ]; then
 fi
 
 
-if [ $stage -le -4 ]; then
+if [ $stage -le 4 ]; then
 #  utils/mkgraph.sh data/lang exp/tri2 exp/tri2/graph
   for mictype in u01 u02 u03 u04 u06; do
     test_sets=dev_${enhancement}_${mictype}
@@ -114,15 +114,15 @@ if [ $stage -le 5 ]; then
   wait
 fi
 
-if [ $stage -le -6 ]; then
+if [ $stage -le 6 ]; then
 
    ./local/get_oracle.sh exp/tri3/decode_dev_${enhancement} exp/tri3/decode_dev_${enhancement}_u12346_oracle
 
 fi
 
-if [ $stage -le -7 ]; then
+if [ $stage -le 7 ]; then
   # chain TDNN
   test_sets="dev_beamformit_u01 dev_beamformit_u02 dev_beamformit_u03 dev_beamformit_u04 dev_beamformit_u06"
-  local/chain/run_tdnn_multistream.sh --stage 20 --nj ${nj} --train-set ${train_set}_cleaned --test-sets "$test_sets" --gmm tri3_cleaned --nnet3-affix _${train_set}_cleaned
+  local/chain/run_tdnn_multistream.sh --stage 19 --nj ${nj} --train-set ${train_set}_cleaned --test-sets "$test_sets" --gmm tri3_cleaned --nnet3-affix _${train_set}_cleaned
 fi
 
