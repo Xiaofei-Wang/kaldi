@@ -28,7 +28,7 @@ json_dir=${chime5_corpus}/transcriptions
 audio_dir=${chime5_corpus}/audio
 
 # training and test data
-train_set=train_worn_u100k
+train_set=train_worn_u400k
 test_sets="dev_worn dev_${enhancement}_ref"
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#test_sets="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
@@ -204,3 +204,4 @@ if [ $stage -le 17 ]; then
   # chain TDNN
   local/chain/run_tdnn.sh --nj ${nj} --train-set ${train_set}_cleaned --test-sets "$test_sets" --gmm tri3_cleaned --nnet3-affix _${train_set}_cleaned
 fi
+
