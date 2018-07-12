@@ -10,7 +10,7 @@
 nj=96
 decode_nj=20
 stage=0
-enhancement=enhanced_mask_r1_mwf_gevd_rnn # for a new enhancement method,
+enhancement=enhanced_cgmm_mvdr_2gaussians # for a new enhancement method,
 
                        # change this variable and stage 4
 # End configuration section

@@ -54,6 +54,7 @@ if [ $stage -le 1 ]; then
   # u05 is missing for the dev set
   for dset in dev; do
     for mictype in u01 u02 u03 u04 u06; do
+#    for mictype in u05; do
         local/prepare_data_new.sh --mictype $mictype "$PWD/${enhandir}/${dset}_${enhancement}_u0*" \
 			  ${json_dir}/${dset} data/${dset}_${enhancement}_${mictype}
     done
