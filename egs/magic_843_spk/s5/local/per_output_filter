@@ -1,0 +1,4 @@
+#!/bin/sed -f
+s:NSN::g
+s:SPN::g
+s:SIL::g
