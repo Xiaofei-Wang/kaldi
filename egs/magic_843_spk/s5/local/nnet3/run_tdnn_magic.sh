@@ -157,5 +157,18 @@ if [ $stage -le 14 ]; then
   [ -f $dir/.error ] && echo "$0: there was a problem while decoding" && exit 1
 fi
 
+data_mmeasure=data-mmeasure
+if [ $stage -le 15 ]; then
+  for data in $test_sets; do
+    local/pm/compute_mmeasure_feats_nnet3.sh \
+        --nj $nj --use-gpu true \
+	--extra-left-context $chunk_left_context \
+	--extra-right-context $chunk_right_context \
+	--extra-left-context-initial 0 \
+	--extra-right-context-final 0 \
+	--online-ivector-dir exp/nnet3${nnet3_affix}/ivectors_${data}_hires \
+	data/${data}_hires ${dir} exp/nnet3{nnet3_affix}/${data_mmeasure}/${data} || exit 1
 
+  done
+fi
 exit 0;
