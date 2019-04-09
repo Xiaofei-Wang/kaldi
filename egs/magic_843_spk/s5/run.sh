@@ -136,16 +136,19 @@ echo "Done GMM training."
 
 
 if [ "$action" == "cleanup" ]; then
-steps/align_fmllr.sh --nj 20 --cmd "$train_cmd" data/dev_20spk data/lang exp/tri5a exp/tri5a_dev_20spk_ali
-steps/cleanup/clean_and_segment_data.sh --nj 20 --cmd "$train_cmd" \
-	--segmentation-opts "--min-segment-length 0.3 --min-new-segment-length 0.6" \
-	data/dev_20spk data/lang exp/tri5a_dev_20spk_ali exp/tri5a_dev_20spk_cleaned data/dev_20spk_cleaned || exit 1;
+    steps/align_fmllr.sh --nj 20 --cmd "$train_cmd" --retry-beam 10000 data/dev_20spk data/lang exp/tri5a exp/tri5a_dev_20spk_ali
+#    steps/cleanup/clean_and_segment_data.sh --nj 20 --cmd "$train_cmd" \
+#	--segmentation-opts "--min-segment-length 0.3 --min-new-segment-length 0.6" \
+#	data/dev_20spk data/lang exp/tri5a_dev_20spk_ali exp/tri5a_dev_20spk_cleaned data/dev_20spk_cleaned || exit 1;
+
+    steps/align_fmllr.sh --nj 20 --cmd "$train_cmd" --retry-beam 10000 data/dev_20spk_refined data/lang exp/tri5a exp/tri5a_dev_20spk_refined_ali
+
 fi
 
 if [ "$action" == "dnn" ]; then
 
 echo "********* train dnn ***************"
-local/nnet/run_dnn.sh --stage 3 || exit 1;
+local/nnet/run_dnn.sh || exit 1;
 fi
 
 if [ "$action" == "nnet3" ]; then
@@ -155,12 +158,12 @@ local/nnet3/run_tdnn_magic.sh || exit 1;
 fi
 
 if [ "$action" == "cleanup_nnet3" ]; then
-#steps/cleanup/clean_and_segment_data_nnet3.sh --nj 20 --cmd "$train_cmd" \
-#	--segmentation-opts "--min-segment-length 0.3 --min-new-segment-length 0.6" \
-#	--online-ivector-dir exp/nnet3/ivectors_dev_20spk_hires \
-#	data/dev_20spk_hires data/lang exp/nnet3/tdnn1a_sp exp/nnet3_dev_20spk_hires_cleaned data/dev_20spk_hires_cleaned || exit 1;
+    steps/cleanup/clean_and_segment_data_nnet3.sh --nj 20 --cmd "$train_cmd" \
+	--segmentation-opts "--min-segment-length 0.3 --min-new-segment-length 0.6" \
+	--online-ivector-dir exp/nnet3/ivectors_dev_20spk_hires \
+	data/dev_20spk_hires data/lang exp/nnet3/tdnn1a_sp exp/nnet3_dev_20spk_hires_cleaned data/dev_20spk_hires_cleaned || exit 1;
 
-steps/cleanup/clean_and_segment_data_nnet3.sh --nj 20 --cmd "$train_cmd" \
+    steps/cleanup/clean_and_segment_data_nnet3.sh --nj 20 --cmd "$train_cmd" \
 	--segmentation-opts "--min-segment-length 0.3 --min-new-segment-length 0.6" \
 	--online-ivector-dir exp/nnet3/ivectors_test_hires \
 	data/test_hires data/lang exp/nnet3/tdnn1a_sp exp/nnet3_test_hires_cleaned data/test_hires_cleaned || exit 1;
